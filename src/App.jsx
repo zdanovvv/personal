@@ -1,174 +1,450 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import Cropper from 'react-easy-crop';
 
-// --- DATA PRIBADI ---
-const projects = [
-  { title: "Smart Parking", type: "Android App", status: "Selesai", tech: "Java" },
-  { title: "Face Recognition", type: "Skripsi", status: "In Progress", tech: "Python/ML" }
-];
+// --- KOLEKSI LOGO BRAND ASLI (DENGAN WARNA) ---
+const ICONS = {
+  // Gmail (Merah Google)
+  email: <svg viewBox="0 0 24 24" fill="#EA4335" className="w-6 h-6"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>,
+  // GitHub (Hitam di Light, Putih di Dark - dihandle via class nanti)
+  github: <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-black dark:text-white"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>,
+  // Instagram (Gradient Pink - kita pakai solid color E1306C biar simpel dan tajam)
+  instagram: <svg viewBox="0 0 24 24" fill="#E1306C" className="w-6 h-6"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>,
+  // LinkedIn (Biru Khas)
+  linkedin: <svg viewBox="0 0 24 24" fill="#0A66C2" className="w-6 h-6"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>,
+  // Discord (Biru Blurple)
+  discord: <svg viewBox="0 0 24 24" fill="#5865F2" className="w-6 h-6"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.086 2.157 2.419 0 1.334-.956 2.419-2.157 2.419zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.086 2.157 2.419 0 1.334-.946 2.419-2.157 2.419z"/></svg>,
+  // Twitter / X (Putih di Dark, Hitam di Light)
+  twitter: <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-black dark:text-white"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>,
+  // Default Link (Abu-abu)
+  website: <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-slate-500"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>,
+};
 
-const games = [
-  { title: "Minecraft", activity: "Hosting Server", status: "Online" },
-  { title: "King's Avatar", activity: "Reading Novel", status: "Chapter 1042" }
-];
+// --- HELPER UNTUK CROP IMAGE ---
+const createImage = (url) =>
+  new Promise((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener('load', () => resolve(image));
+    image.addEventListener('error', (error) => reject(error));
+    image.src = url;
+  });
 
-const stories = [
-  { title: "Malam di Neo-Jakarta", genre: "Sci-Fi", readTime: "5 min" },
-  { title: "Catatan Skripsi", genre: "Jurnal", readTime: "2 min" }
+async function getCroppedImg(imageSrc, pixelCrop) {
+  const image = await createImage(imageSrc);
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = pixelCrop.width;
+  canvas.height = pixelCrop.height;
+  ctx.drawImage(
+    image,
+    pixelCrop.x,
+    pixelCrop.y,
+    pixelCrop.width,
+    pixelCrop.height,
+    0,
+    0,
+    pixelCrop.width,
+    pixelCrop.height
+  );
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      reader.onloadend = () => {
+        resolve(reader.result);
+      };
+    }, 'image/jpeg');
+  });
+}
+
+// --- DATA DEFAULT ---
+const defaultStories = [{ id: 1, title: "Malam di Neo-Jakarta", category: "One-Shot", date: "20 Jan 2026", image: null, snippet: "Lampu neon berkedip seirama detak jantung kota..." }];
+const defaultProjects = [{ id: 1, title: "Smart Parking System", role: "Android Dev", tech: "Java/Firebase", image: null, desc: "Aplikasi reservasi parkir kampus UIB." }];
+const defaultGames = [{ id: 1, title: "Minecraft", status: "Server Admin", rank: "Veteran", image: null }];
+const defaultSkills = ["Java", "Python", "React", "Firebase", "Android Studio", "Tailwind"];
+
+const defaultSocials = [
+  { id: 'email', name: "Gmail", icon: "email", link: "mailto:taufik@student.uib.ac.id", display: "taufik@student.uib.ac.id" },
+  { id: 'github', name: "Github", icon: "github", link: "https://github.com/taufik", display: "github.com/taufik" },
+  { id: 'instagram', name: "Instagram", icon: "instagram", link: "https://instagram.com/taufik", display: "@taufik_ig" },
+  { id: 'linkedin', name: "LinkedIn", icon: "linkedin", link: "https://linkedin.com/in/taufik", display: "M. Taufik Hidayat" },
+  { id: 'discord', name: "Discord", icon: "discord", link: "https://discord.com/users/taufik", display: "taufik#1234" }
 ];
 
 export default function App() {
-  // State untuk Dark Mode (Default: True/Gelap)
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(() => JSON.parse(localStorage.getItem('theme')) ?? true);
+  const [profileImg, setProfileImg] = useState(() => localStorage.getItem('profileImg') || null);
+  
+  const [stories, setStories] = useState(() => JSON.parse(localStorage.getItem('stories')) || defaultStories);
+  const [projects, setProjects] = useState(() => JSON.parse(localStorage.getItem('projects')) || defaultProjects);
+  const [games, setGames] = useState(() => JSON.parse(localStorage.getItem('games')) || defaultGames);
+  const [skills, setSkills] = useState(() => JSON.parse(localStorage.getItem('skills')) || defaultSkills);
+  const [socials, setSocials] = useState(() => JSON.parse(localStorage.getItem('socials')) || defaultSocials);
+
+  const [activeTab, setActiveTab] = useState("projects");
+  const [storyFilter, setStoryFilter] = useState("All");
+  const [editMode, setEditMode] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  
+  const [cropImage, setCropImage] = useState(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+  const [cropAspect, setCropAspect] = useState(1);
+  const [cropTarget, setCropTarget] = useState(null);
+
+  const fileInputRef = useRef(null);
+  const importInputRef = useRef(null);
+
+  useEffect(() => { localStorage.setItem('theme', JSON.stringify(isDark)); }, [isDark]);
+  useEffect(() => { if(profileImg) localStorage.setItem('profileImg', profileImg); }, [profileImg]);
+  useEffect(() => { localStorage.setItem('stories', JSON.stringify(stories)); }, [stories]);
+  useEffect(() => { localStorage.setItem('projects', JSON.stringify(projects)); }, [projects]);
+  useEffect(() => { localStorage.setItem('games', JSON.stringify(games)); }, [games]);
+  useEffect(() => { localStorage.setItem('skills', JSON.stringify(skills)); }, [skills]);
+  useEffect(() => { localStorage.setItem('socials', JSON.stringify(socials)); }, [socials]);
+
+  const onCropComplete = useCallback((croppedArea, croppedAreaPixels) => { setCroppedAreaPixels(croppedAreaPixels); }, []);
+  const initiateCrop = (e, targetType, targetId = null) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        setCropImage(reader.result);
+        setCropTarget({ type: targetType, id: targetId });
+        if (targetType === 'profile') setCropAspect(1 / 1);
+        else if (targetType === 'projects') setCropAspect(16 / 9);
+        else if (targetType === 'games') setCropAspect(3 / 4);
+        else if (targetType === 'stories') setCropAspect(2 / 3);
+      };
+    }
+    e.target.value = null; 
+  };
+  const saveCroppedImage = async () => {
+    try {
+      const croppedImageBase64 = await getCroppedImg(cropImage, croppedAreaPixels);
+      if (cropTarget.type === 'profile') setProfileImg(croppedImageBase64);
+      else {
+        const updateList = (list) => list.map(item => item.id === cropTarget.id ? { ...item, image: croppedImageBase64 } : item);
+        if (cropTarget.type === 'stories') setStories(updateList(stories));
+        if (cropTarget.type === 'projects') setProjects(updateList(projects));
+        if (cropTarget.type === 'games') setGames(updateList(games));
+      }
+      setCropImage(null); setZoom(1);
+    } catch (e) { console.error(e); }
+  };
+
+  const openEditModal = (item, type) => { setEditingItem({ ...item, type }); };
+  const saveEditText = () => {
+    if (!editingItem) return;
+    const { type, ...data } = editingItem;
+    if (type === 'projects') setProjects(projects.map(p => p.id === data.id ? data : p));
+    if (type === 'games') setGames(games.map(g => g.id === data.id ? data : g));
+    if (type === 'stories') setStories(stories.map(s => s.id === data.id ? data : s));
+    if (type === 'socials') setSocials(socials.map(s => s.id === data.id ? data : s));
+    setEditingItem(null);
+  };
+
+  const addSkill = () => { const newSkill = prompt("Masukkan nama skill baru:"); if (newSkill) setSkills([...skills, newSkill]); };
+  const removeSkill = (skillToRemove) => { if(confirm(`Hapus skill ${skillToRemove}?`)) setSkills(skills.filter(s => s !== skillToRemove)); };
+  
+  const addSocial = () => {
+     const id = Date.now().toString();
+     setSocials([...socials, { id, name: "New Link", icon: "website", link: "https://", display: "Link" }]);
+  };
+  const deleteSocial = (id) => {
+    if(confirm("Hapus link ini?")) setSocials(socials.filter(s => s.id !== id));
+  }
+
+  const exportData = () => {
+    const data = { profileImg, stories, projects, games, skills, socials, theme: isDark };
+    const link = document.createElement("a");
+    link.href = `data:text/json;chatset=utf-8,${encodeURIComponent(JSON.stringify(data))}`;
+    link.download = "my-personal-space-backup.json";
+    link.click();
+    alert("Data berhasil didownload!");
+  };
+  const importData = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const data = JSON.parse(event.target.result);
+          if (confirm("Restore backup?")) {
+            setProfileImg(data.profileImg || null); setStories(data.stories || []); setProjects(data.projects || []); setGames(data.games || []); setSkills(data.skills || []); setSocials(data.socials || defaultSocials); setIsDark(data.theme ?? true);
+            alert("Data dipulihkan!");
+          }
+        } catch { alert("File backup rusak!"); }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const addStory = () => setStories([{ id: Date.now(), title: "New Story", category: "One-Shot", date: "Just Now", image: null, snippet: "Deskripsi cerita..." }, ...stories]);
+  const addProject = () => setProjects([{ id: Date.now(), title: "New Project", role: "Owner", tech: "Stack", image: null, desc: "Deskripsi project..." }, ...projects]);
+  const addGame = () => setGames([{ id: Date.now(), title: "New Game", status: "Playing", rank: "Newbie", image: null }, ...games]);
+  const filteredStories = storyFilter === "All" ? stories : stories.filter(s => s.category === storyFilter);
 
   return (
-    // Wrapper Utama untuk Logic Dark Mode
     <div className={isDark ? "dark" : ""}>
-      
-      {/* Container Halaman dengan Transisi Warna Halus */}
-      <div className="min-h-screen font-sans p-4 md:p-8 transition-colors duration-500
-        bg-slate-50 text-slate-800 
-        dark:bg-[#09090b] dark:text-zinc-200"
-      >
+      <div className="min-h-screen w-full font-sans transition-colors duration-500 bg-slate-100 text-slate-800 dark:bg-[#0a0a0a] dark:text-zinc-200 overflow-x-hidden">
         
-        <div className="max-w-6xl mx-auto space-y-6">
-          
-          {/* --- HEADER --- */}
-          <header className="flex flex-col md:flex-row justify-between items-end pb-6 border-b border-slate-200 dark:border-zinc-800 transition-colors duration-500">
-            <div>
-              <h1 className="text-4xl font-bold tracking-tight text-slate-900 dark:text-white">
-                Halo, Folkz.
-              </h1>
-              <p className="text-slate-500 dark:text-zinc-500 mt-2">
-                Welcome back to your personal command center.
-              </p>
-            </div>
-
-            <div className="mt-4 md:mt-0 flex items-center gap-4 text-sm font-medium">
-              {/* TOMBOL TOGGLE THEME */}
-              <button 
-                onClick={() => setIsDark(!isDark)}
-                className="p-2 rounded-full bg-white border border-slate-200 shadow-sm 
-                dark:bg-zinc-900 dark:border-zinc-700 hover:scale-110 transition-all"
-              >
-                {isDark ? "☀️ Light" : "🌙 Dark"}
-              </button>
-
-              <span className="hidden md:flex px-3 py-1 bg-white rounded-full border border-slate-200 shadow-sm items-center gap-2 dark:bg-zinc-900 dark:border-zinc-800">
-                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span> Available
-              </span>
-            </div>
-          </header>
-
-          {/* --- MAIN GRID --- */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-
-            {/* 1. ABOUT ME */}
-            <motion.div whileHover={{ y: -2 }} className="md:col-span-8 p-8 rounded-3xl shadow-sm border transition-colors duration-500
-              bg-white border-slate-200 
-              dark:bg-zinc-900/50 dark:border-zinc-800">
-              <h2 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">About Me</h2>
-              <p className="leading-relaxed text-lg text-slate-600 dark:text-zinc-400">
-                Mahasiswa tingkat akhir yang hidup di antara baris kode dan paragraf cerita. 
-                Saat ini sedang fokus menamatkan <span className="font-medium bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400 px-1 rounded">Skripsi</span> tentang Machine Learning, 
-                sambil ngulik <span className="font-medium bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 px-1 rounded">Android Dev</span>.
-              </p>
-            </motion.div>
-
-            {/* 2. PROGRESS BAR */}
-            <motion.div whileHover={{ y: -2 }} className="md:col-span-4 p-8 rounded-3xl shadow-sm border flex flex-col justify-center transition-colors duration-500
-              bg-white border-slate-200 
-              dark:bg-zinc-900/50 dark:border-zinc-800">
-              <h3 className="text-sm font-mono uppercase mb-4 text-slate-400 dark:text-zinc-500">Current Focus</h3>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm mb-1 font-medium">
-                    <span>Skripsi (Bab 4)</span>
-                    <span className="text-indigo-600 dark:text-indigo-400">75%</span>
-                  </div>
-                  <div className="h-2 rounded-full overflow-hidden bg-slate-100 dark:bg-zinc-800">
-                    <div className="h-full bg-indigo-500 w-[75%]"></div>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-1 font-medium">
-                    <span>Next Story</span>
-                    <span className="text-emerald-600 dark:text-emerald-400">30%</span>
-                  </div>
-                  <div className="h-2 rounded-full overflow-hidden bg-slate-100 dark:bg-zinc-800">
-                    <div className="h-full bg-emerald-500 w-[30%]"></div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* 3. GAMING & HOBBY */}
-            <motion.div whileHover={{ y: -2 }} className="md:col-span-4 p-6 rounded-3xl shadow-sm border transition-colors duration-500
-              bg-linear-to-br from-indigo-50 to-white border-indigo-100 
-              dark:from-indigo-900/10 dark:to-zinc-900 dark:border-zinc-800">
-              <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-slate-800 dark:text-zinc-200">
-                🎮 Gaming Status
-              </h3>
+        {/* === MODAL EDIT TEXT === */}
+        {editingItem && (
+          <div className="fixed inset-0 z-[70] bg-black/80 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl w-full max-w-lg border border-slate-200 dark:border-zinc-700 shadow-2xl">
+              <h3 className="text-xl font-bold mb-4">Edit Details ✏️</h3>
               <div className="space-y-3">
-                {games.map((g, i) => (
-                  <div key={i} className="flex justify-between items-center p-3 rounded-xl border shadow-sm transition-colors duration-500
-                    bg-white border-indigo-100/50 
-                    dark:bg-black/20 dark:border-white/5">
-                    <div>
-                      <div className="font-medium text-slate-700 dark:text-zinc-300">{g.title}</div>
-                      <div className="text-xs text-slate-500 dark:text-zinc-500">{g.activity}</div>
-                    </div>
-                    <div className="text-xs px-2 py-1 rounded font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">{g.status}</div>
-                  </div>
-                ))}
+                {editingItem.type === 'socials' ? (
+                  <>
+                     <div>
+                       <label className="text-xs font-bold uppercase text-slate-400">Platform Icon</label>
+                       <select className="w-full p-2 rounded bg-slate-100 dark:bg-zinc-800 outline-none" value={editingItem.icon} onChange={e => setEditingItem({...editingItem, icon: e.target.value})}>
+                         <option value="email">Gmail / Email</option>
+                         <option value="github">Github</option>
+                         <option value="instagram">Instagram</option>
+                         <option value="linkedin">LinkedIn</option>
+                         <option value="discord">Discord</option>
+                         <option value="twitter">Twitter / X</option>
+                         <option value="website">Website / Link</option>
+                       </select>
+                     </div>
+                     <div><label className="text-xs font-bold uppercase text-slate-400">Display Text</label><input className="w-full p-2 rounded bg-slate-100 dark:bg-zinc-800" value={editingItem.display} onChange={e => setEditingItem({...editingItem, display: e.target.value})} /></div>
+                     <div><label className="text-xs font-bold uppercase text-slate-400">Link URL</label><input className="w-full p-2 rounded bg-slate-100 dark:bg-zinc-800" value={editingItem.link} onChange={e => setEditingItem({...editingItem, link: e.target.value})} /></div>
+                  </>
+                ) : (
+                  <>
+                    <div><label className="text-xs font-bold uppercase text-slate-400">Title / Name</label><input className="w-full p-2 rounded bg-slate-100 dark:bg-zinc-800 border border-transparent focus:border-indigo-500 outline-none" value={editingItem.title} onChange={e => setEditingItem({...editingItem, title: e.target.value})} /></div>
+                    {editingItem.type === 'projects' && (
+                      <>
+                        <div><label className="text-xs font-bold uppercase text-slate-400">Role</label><input className="w-full p-2 rounded bg-slate-100 dark:bg-zinc-800" value={editingItem.role} onChange={e => setEditingItem({...editingItem, role: e.target.value})} /></div>
+                        <div><label className="text-xs font-bold uppercase text-slate-400">Tech Stack</label><input className="w-full p-2 rounded bg-slate-100 dark:bg-zinc-800" value={editingItem.tech} onChange={e => setEditingItem({...editingItem, tech: e.target.value})} /></div>
+                        <div><label className="text-xs font-bold uppercase text-slate-400">Description</label><textarea className="w-full p-2 rounded bg-slate-100 dark:bg-zinc-800 h-24" value={editingItem.desc} onChange={e => setEditingItem({...editingItem, desc: e.target.value})} /></div>
+                      </>
+                    )}
+                    {editingItem.type === 'games' && (
+                      <>
+                        <div><label className="text-xs font-bold uppercase text-slate-400">Status</label><input className="w-full p-2 rounded bg-slate-100 dark:bg-zinc-800" value={editingItem.status} onChange={e => setEditingItem({...editingItem, status: e.target.value})} /></div>
+                        <div><label className="text-xs font-bold uppercase text-slate-400">Rank</label><input className="w-full p-2 rounded bg-slate-100 dark:bg-zinc-800" value={editingItem.rank} onChange={e => setEditingItem({...editingItem, rank: e.target.value})} /></div>
+                      </>
+                    )}
+                    {editingItem.type === 'stories' && (
+                      <>
+                         <div><label className="text-xs font-bold uppercase text-slate-400">Category</label><select className="w-full p-2 rounded bg-slate-100 dark:bg-zinc-800 outline-none" value={editingItem.category} onChange={e => setEditingItem({...editingItem, category: e.target.value})}><option value="One-Shot">One-Shot</option><option value="Series">Series</option><option value="Draft">Draft</option></select></div>
+                        <div><label className="text-xs font-bold uppercase text-slate-400">Date</label><input className="w-full p-2 rounded bg-slate-100 dark:bg-zinc-800" value={editingItem.date} onChange={e => setEditingItem({...editingItem, date: e.target.value})} /></div>
+                        <div><label className="text-xs font-bold uppercase text-slate-400">Synopsis</label><textarea className="w-full p-2 rounded bg-slate-100 dark:bg-zinc-800 h-24" value={editingItem.snippet} onChange={e => setEditingItem({...editingItem, snippet: e.target.value})} /></div>
+                      </>
+                    )}
+                  </>
+                )}
               </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button onClick={() => setEditingItem(null)} className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700">Cancel</button>
+                <button onClick={saveEditText} className="px-4 py-2 text-sm font-bold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Save Changes</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* === MODAL CROPPER === */}
+        {cropImage && (
+          <div className="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center p-4">
+            <div className="relative w-full max-w-2xl h-[60vh] bg-zinc-800 rounded-xl overflow-hidden border border-zinc-700">
+              <Cropper image={cropImage} crop={crop} zoom={zoom} aspect={cropAspect} onCropChange={setCrop} onCropComplete={onCropComplete} onZoomChange={setZoom} />
+            </div>
+            <div className="mt-6 flex flex-col items-center gap-4 w-full max-w-md">
+              <input type="range" min={1} max={3} step={0.1} value={zoom} onChange={(e) => setZoom(e.target.value)} className="w-full accent-indigo-500"/>
+              <div className="flex gap-4">
+                <button onClick={() => setCropImage(null)} className="px-6 py-2 rounded-full font-bold bg-zinc-700 text-white">Batal</button>
+                <button onClick={saveCroppedImage} className="px-6 py-2 rounded-full font-bold bg-indigo-600 text-white shadow-lg">Simpan Gambar ✅</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* BUTTON CONTROLS */}
+        <div className="fixed bottom-8 right-8 z-50 flex flex-col gap-3 items-end">
+          <AnimatePresence>
+            {editMode && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="flex flex-col gap-2">
+                <button onClick={exportData} className="px-4 py-2 rounded-xl font-bold shadow-lg bg-emerald-600 text-white text-sm hover:scale-105 flex items-center gap-2">💾 Save Backup</button>
+                <button onClick={() => importInputRef.current.click()} className="px-4 py-2 rounded-xl font-bold shadow-lg bg-blue-600 text-white text-sm hover:scale-105 flex items-center gap-2">📂 Load Backup</button>
+                <input type="file" ref={importInputRef} className="hidden" onChange={importData} accept=".json" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <button onClick={() => setEditMode(!editMode)} className={`px-6 py-3 rounded-full font-bold shadow-xl transition-all ${editMode ? 'bg-red-500 text-white' : 'bg-indigo-600 text-white'}`}>{editMode ? "Done 🔒" : "Edit ✏️"}</button>
+        </div>
+
+        <div className="w-full px-4 md:px-12 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+          
+          {/* === SIDEBAR KIRI === */}
+          <div className="lg:col-span-3 space-y-6">
+            
+            {/* 1. PROFILE CARD */}
+            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="p-8 rounded-3xl bg-white border border-slate-200 shadow-xl dark:bg-zinc-900 dark:border-zinc-800">
+              <div className="relative w-40 h-40 mx-auto rounded-full p-1 bg-gradient-to-tr from-indigo-500 to-purple-500 cursor-pointer group" onClick={() => fileInputRef.current.click()}>
+                <div className="w-full h-full rounded-full bg-slate-200 dark:bg-zinc-800 flex items-center justify-center overflow-hidden">
+                  {profileImg ? <img src={profileImg} alt="Profile" className="w-full h-full object-cover" /> : <span className="text-4xl font-bold text-indigo-500">MT</span>}
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full text-white text-xs font-bold">Change</div>
+                </div>
+                <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => initiateCrop(e, 'profile')} accept="image/*"/>
+              </div>
+              <div className="text-center mt-6">
+                <h1 className="text-xl font-bold text-slate-900 dark:text-white leading-tight mb-1">Muhammad Taufik Hidayat Pratama</h1>
+                <p className="text-indigo-500 font-medium text-sm">Mahasiswa TI • UIB</p>
+                <div className="mt-4 p-4 rounded-xl bg-slate-50 dark:bg-zinc-950/50 border border-slate-100 dark:border-zinc-800 text-left">
+                  <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">About Me</h3>
+                  <p className="text-sm text-slate-600 dark:text-zinc-400 leading-relaxed">
+                    Mahasiswa Teknik Informatika di Universitas Internasional Batam (UIB). Saat ini sedang fokus mendalami pengembangan aplikasi Android dan kecerdasan buatan (AI). Di luar koding, saya aktif menulis cerita fiksi, bermain Game dan membaca komik. Bercita-cita menciptakan solusi teknologi yang bermanfaat bagi banyak orang.
+                  </p>
+                </div>
+                <div className="mt-4 space-y-2 text-xs text-slate-400 dark:text-zinc-500"><p>🎂 11 Juni 2005 (20 Tahun) • 📍 Batam</p></div>
+              </div>
+              <button onClick={() => setIsDark(!isDark)} className="w-full mt-6 py-3 rounded-xl font-medium text-sm border border-slate-200 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800">{isDark ? "Switch to Light ☀️" : "Switch to Dark 🌙"}</button>
             </motion.div>
 
-            {/* 4. PROJECTS */}
-            <motion.div whileHover={{ y: -2 }} className="md:col-span-4 p-6 rounded-3xl shadow-sm border transition-colors duration-500
-              bg-white border-slate-200 
-              dark:bg-zinc-900/50 dark:border-zinc-800">
-               <h3 className="text-lg font-bold mb-4 text-slate-900 dark:text-white">💻 Kuliah & Code</h3>
-               <div className="space-y-3">
-                {projects.map((p, i) => (
-                  <div key={i} className="p-4 rounded-xl cursor-pointer border border-transparent transition-colors duration-500
-                    bg-slate-50 hover:bg-slate-100 hover:border-slate-200 
-                    dark:bg-zinc-800/30 dark:hover:bg-zinc-800/60 dark:hover:border-zinc-700">
-                    <div className="flex justify-between items-start">
-                      <h4 className="font-semibold text-slate-800 dark:text-zinc-200">{p.title}</h4>
-                      {p.status === "In Progress" && <span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>}
-                    </div>
-                    <p className="text-xs mt-1 text-slate-500 dark:text-zinc-500">{p.type} • {p.tech}</p>
-                  </div>
-                ))}
+            {/* 2. TECH STACK */}
+            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{delay: 0.1}} className="p-6 rounded-3xl bg-white border border-slate-200 shadow-lg dark:bg-zinc-900 dark:border-zinc-800">
+               <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-lg">Tech Stack</h3>{editMode && <button onClick={addSkill} className="text-xs bg-indigo-100 text-indigo-600 px-2 py-1 rounded hover:bg-indigo-200">+ Add</button>}</div>
+               <div className="flex flex-wrap gap-2">
+                 {skills.map((skill, i) => (
+                   <span key={i} onClick={() => editMode && removeSkill(skill)} className={`px-3 py-1 rounded-full text-xs font-medium border ${editMode ? 'cursor-pointer hover:bg-red-100 hover:text-red-500 hover:border-red-200' : 'bg-slate-50 dark:bg-zinc-800 border-slate-200 dark:border-zinc-700'}`}>
+                     {skill} {editMode && "×"}
+                   </span>
+                 ))}
                </div>
             </motion.div>
 
-            {/* 5. ARSIP CERITA */}
-            <motion.div whileHover={{ y: -2 }} className="md:col-span-4 p-6 rounded-3xl shadow-sm border transition-colors duration-500
-              bg-white border-slate-200 
-              dark:bg-zinc-900/50 dark:border-zinc-800">
-              <h3 className="text-lg font-bold mb-4 text-slate-900 dark:text-white">📝 Arsip Cerita</h3>
-              <div className="space-y-4">
-                {stories.map((s, i) => (
-                  <div key={i} className="group flex justify-between items-center pb-2 last:border-0 cursor-pointer border-b transition-colors duration-500
-                    border-slate-100 
-                    dark:border-zinc-800">
-                    <div>
-                      <div className="font-medium transition-colors group-hover:text-indigo-600 dark:text-zinc-300 dark:group-hover:text-indigo-400">{s.title}</div>
-                      <div className="text-xs text-slate-400 dark:text-zinc-600">{s.genre}</div>
-                    </div>
-                    <div className="text-xs font-mono px-2 py-1 rounded bg-slate-50 text-slate-400 dark:bg-zinc-800 dark:text-zinc-500">{s.readTime}</div>
-                  </div>
-                ))}
-              </div>
-              <button className="w-full mt-5 py-2 text-xs font-medium text-center border border-dashed rounded-lg transition-all
-                border-slate-300 text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 
-                dark:border-zinc-700 dark:text-zinc-500 dark:hover:text-white dark:hover:border-zinc-500 dark:hover:bg-zinc-800">
-                + Tulis Cerita Baru
-              </button>
+            {/* 3. CONNECT (UPDATED: REAL LOGOS & COLORS) */}
+            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{delay: 0.2}} className="p-6 rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-lg">
+               <div className="flex justify-between items-start mb-2">
+                  <h3 className="font-bold text-lg text-slate-900 dark:text-white">Connect</h3>
+                  {editMode && <button onClick={addSocial} className="text-xs bg-indigo-100 text-indigo-600 px-2 py-1 rounded hover:bg-indigo-200">+ New</button>}
+               </div>
+               <p className="text-sm text-slate-500 dark:text-zinc-500 mb-4">Open for collaboration on Android & AI Projects.</p>
+               
+               <div className="space-y-3 text-sm font-medium">
+                 {socials.map((s) => (
+                   <div key={s.id} className="group flex items-center justify-between">
+                     <a href={s.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 opacity-80 hover:opacity-100 transition-opacity flex-1 text-slate-700 dark:text-zinc-300">
+                       {/* Render Icon SVG Asli */}
+                       <span className="shrink-0">{ICONS[s.icon] || ICONS.website}</span>
+                       <span className="truncate hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">{s.display}</span>
+                     </a>
+                     {editMode && (
+                       <div className="flex gap-1">
+                         <button onClick={() => openEditModal(s, 'socials')} className="text-xs bg-slate-100 dark:bg-zinc-800 px-2 py-1 rounded hover:bg-indigo-100 dark:hover:bg-zinc-700">Edit</button>
+                         <button onClick={() => deleteSocial(s.id)} className="text-xs bg-red-500/10 text-red-500 px-2 py-1 rounded hover:bg-red-500 hover:text-white">×</button>
+                       </div>
+                     )}
+                   </div>
+                 ))}
+               </div>
             </motion.div>
 
+          </div>
+
+          {/* === CONTENT SECTION KANAN === */}
+          <div className="lg:col-span-9">
+            <div className="flex gap-4 mb-8 overflow-x-auto pb-2">
+              {['projects', 'games', 'stories'].map((tab) => (
+                <button key={tab} onClick={() => setActiveTab(tab)} className={`px-8 py-3 rounded-2xl text-lg font-bold whitespace-nowrap ${activeTab === tab ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-400 dark:bg-zinc-900 dark:text-zinc-500'}`}>{tab.charAt(0).toUpperCase() + tab.slice(1)}</button>
+              ))}
+            </div>
+
+            <div className="min-h-[500px]">
+              <AnimatePresence mode="wait">
+                
+                {/* PROJECTS TAB */}
+                {activeTab === 'projects' && (
+                  <motion.div key="projects" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                     <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold">My Works</h3>{editMode && <button onClick={addProject} className="bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold">+ New</button>}</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                      {projects.map((p) => (
+                        <div key={p.id} className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 group">
+                          <div className="h-48 bg-slate-200 dark:bg-zinc-800 relative">
+                             {p.image ? <img src={p.image} className="w-full h-full object-cover" alt={p.title}/> : <div className="w-full h-full flex items-center justify-center text-4xl">💻</div>}
+                             {editMode && <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10"><label className="cursor-pointer bg-white text-black px-4 py-2 rounded-full font-bold text-xs hover:scale-105"><span>📷 Cover</span><input type="file" className="hidden" onChange={(e) => initiateCrop(e, 'projects', p.id)}/></label></div>}
+                          </div>
+                          <div className="p-6">
+                            <h3 className="font-bold text-xl mb-1">{p.title}</h3>
+                            <p className="text-xs font-mono text-indigo-500 mb-4">{p.tech}</p>
+                            <p className="text-sm text-slate-500 dark:text-zinc-400 line-clamp-3">{p.desc}</p>
+                            {editMode && <button onClick={() => openEditModal(p, 'projects')} className="w-full mt-4 py-2 bg-slate-100 dark:bg-zinc-800 text-xs font-bold rounded-lg hover:bg-indigo-100 dark:hover:bg-zinc-700 hover:text-indigo-600 transition-colors">Edit Text 📝</button>}
+                          </div>
+                          {editMode && <button onClick={() => setProjects(projects.filter(x => x.id !== p.id))} className="absolute top-3 right-3 z-20 bg-red-500 text-white w-8 h-8 flex items-center justify-center rounded-full shadow-lg font-bold text-xs hover:bg-red-600">✕</button>}
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* GAMES TAB */}
+                {activeTab === 'games' && (
+                  <motion.div key="games" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                    <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold">Gaming Center</h3>{editMode && <button onClick={addGame} className="bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold">+ Add</button>}</div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {games.map((g) => (
+                        <div key={g.id} className="relative aspect-[3/4] rounded-2xl bg-slate-200 dark:bg-zinc-900 overflow-hidden border border-slate-200 dark:border-zinc-800 shadow-lg">
+                           {g.image ? <img src={g.image} className="w-full h-full object-cover" alt={g.title}/> : <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-white"><span className="text-4xl">🎮</span><span className="text-sm mt-2 font-bold">{g.title}</span></div>}
+                           <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/90 to-transparent text-white"><h4 className="font-bold truncate">{g.title}</h4><p className="text-xs text-emerald-400">{g.rank}</p></div>
+                           {editMode && (
+                             <>
+                               <div className="absolute inset-0 bg-black/40 flex flex-col gap-2 items-center justify-center z-10">
+                                  <label className="cursor-pointer bg-white text-black px-3 py-1 rounded-full font-bold text-[10px] hover:scale-105"><span>📷 Ganti</span><input type="file" className="hidden" onChange={(e) => initiateCrop(e, 'games', g.id)}/></label>
+                                  <button onClick={() => openEditModal(g, 'games')} className="bg-indigo-600 text-white px-3 py-1 rounded-full font-bold text-[10px] hover:scale-105">Edit 📝</button>
+                               </div>
+                               <button onClick={(e) => {e.preventDefault(); setGames(games.filter(x => x.id !== g.id))}} className="absolute top-2 right-2 z-20 bg-red-600 text-white w-6 h-6 flex items-center justify-center rounded-full shadow-md text-[10px] hover:bg-red-700">✕</button>
+                             </>
+                           )}
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* STORIES TAB */}
+                {activeTab === 'stories' && (
+                  <motion.div key="stories" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                      <h3 className="text-xl font-bold">My Stories</h3>
+                      <div className="flex gap-2 bg-white dark:bg-zinc-900 p-1 rounded-xl border border-slate-200 dark:border-zinc-800">
+                        {["All", "One-Shot", "Series", "Draft"].map(f => (
+                          <button key={f} onClick={() => setStoryFilter(f)} className={`px-4 py-1 rounded-lg text-xs font-bold transition-all ${storyFilter === f ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-zinc-800'}`}>{f}</button>
+                        ))}
+                      </div>
+                      {editMode && <button onClick={addStory} className="bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold text-sm">+ Write</button>}
+                    </div>
+                    <div className="space-y-6">
+                      {filteredStories.map((s) => (
+                        <div key={s.id} className="relative flex flex-col md:flex-row gap-6 p-6 rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:border-indigo-500 transition-all">
+                          <div className="w-full md:w-48 aspect-[2/3] bg-slate-200 dark:bg-zinc-800 rounded-xl overflow-hidden shrink-0 relative">
+                            {s.image ? <img src={s.image} className="w-full h-full object-cover" alt={s.title}/> : <div className="w-full h-full flex items-center justify-center bg-zinc-800 text-zinc-600 text-4xl">📖</div>}
+                            <span className="absolute top-2 left-2 px-2 py-1 bg-black/50 text-white text-[10px] font-bold rounded backdrop-blur-sm">{s.category}</span>
+                            {editMode && <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10"><label className="cursor-pointer bg-white text-black px-3 py-2 rounded-full font-bold text-xs hover:scale-105"><span>📷 Cover</span><input type="file" className="hidden" onChange={(e) => initiateCrop(e, 'stories', s.id)}/></label></div>}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex justify-between items-start">
+                              <div><h2 className="text-2xl font-bold mb-2">{s.title}</h2><span className="px-3 py-1 rounded-full bg-slate-100 dark:bg-zinc-800 text-xs font-mono">{s.date}</span></div>
+                              {editMode && <button onClick={() => setStories(stories.filter(x => x.id !== s.id))} className="text-red-500 hover:text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-1 rounded-lg text-sm font-bold transition-colors">Delete 🗑️</button>}
+                            </div>
+                            <p className="mt-4 text-slate-600 dark:text-zinc-400 leading-relaxed">{s.snippet}</p>
+                            <div className="flex items-center gap-4 mt-6">
+                              <button className="text-indigo-500 font-bold text-sm hover:underline">Read Chapter 1 →</button>
+                              {editMode && <button onClick={() => openEditModal(s, 'stories')} className="text-xs bg-slate-200 dark:bg-zinc-700 px-3 py-1 rounded font-bold hover:bg-indigo-100 dark:hover:bg-zinc-600">Edit Details 📝</button>}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+
+              </AnimatePresence>
+            </div>
           </div>
         </div>
       </div>

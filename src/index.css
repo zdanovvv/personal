@@ -1,1 +1,5 @@
 @import "tailwindcss";
+
+/* PAKSA DARK MODE MANUAL */
+/* Ini artinya: "Aktifkan style dark: cuma kalau ada class .dark di elemen pembungkus" */
+@variant dark (&:where(.dark, .dark *));
