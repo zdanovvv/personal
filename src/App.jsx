@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Reorder } from 'framer-motion'; // UPDATE: Import Reorder
 import Cropper from 'react-easy-crop';
 
 // --- KOLEKSI LOGO BRAND ---
@@ -65,7 +65,6 @@ const defaultStories = [
 
 const defaultProjects = [{ id: 1, title: "Smart Parking System", role: "Android Dev", tech: "Java/Firebase", image: null, desc: "Aplikasi reservasi parkir kampus UIB." }];
 
-// UPDATE: Menambahkan field 'desc' untuk efek hover
 const defaultGames = [
     { 
         id: 1, 
@@ -94,6 +93,17 @@ const itemVariants = {
   exit: { opacity: 0, scale: 0.8, transition: { duration: 0.2 } }
 };
 
+// --- ICON DRAG HANDLE ---
+const DragHandle = () => (
+  <div className="absolute top-3 left-3 z-20 p-1.5 bg-black/50 backdrop-blur-sm rounded-lg cursor-grab active:cursor-grabbing text-white opacity-70 hover:opacity-100 transition-opacity">
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+       <path d="M12 2C12.5523 2 13 2.44772 13 3V21C13 21.5523 12.5523 22 12 22C11.4477 22 11 21.5523 11 21V3C11 2.44772 11.4477 2 12 2Z" fill="currentColor"/>
+       <path d="M6 2C6.55228 2 7 2.44772 7 3V21C7 21.5523 6.55228 22 6 22C5.44772 22 5 21.5523 5 21V3C5 2.44772 5.44772 2 6 2Z" fill="currentColor"/>
+       <path d="M18 2C18.5523 2 19 2.44772 19 3V21C19 21.5523 18.5523 22 18 22C17.4477 22 17 21.5523 17 21V3C17 2.44772 17.4477 2 18 2Z" fill="currentColor"/>
+    </svg>
+  </div>
+);
+
 export default function App() {
   const [isDark, setIsDark] = useState(() => JSON.parse(localStorage.getItem('theme')) ?? true);
   const [profileImg, setProfileImg] = useState(() => localStorage.getItem('profileImg') || null);
@@ -109,7 +119,13 @@ export default function App() {
   const [editMode, setEditMode] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   
-  // State untuk Reader Mode
+  // UPDATE: State untuk Sort Options per Tab
+  const [sortConfig, setSortConfig] = useState({
+    projects: 'manual',
+    games: 'manual',
+    stories: 'manual'
+  });
+
   const [readingStory, setReadingStory] = useState(null);
   
   const [cropImage, setCropImage] = useState(null);
@@ -208,11 +224,38 @@ export default function App() {
     }
   };
 
-  // --- ADD FUNCTIONS ---
   const addStory = () => setStories([{ id: Date.now(), title: "New Story", category: "One-Shot", date: "Just Now", image: null, snippet: "Sinopsis singkat...", content: "Tulis cerita lengkap di sini..." }, ...stories]);
   const addProject = () => setProjects([{ id: Date.now(), title: "New Project", role: "Owner", tech: "Stack", image: null, desc: "Deskripsi project..." }, ...projects]);
   const addGame = () => setGames([{ id: Date.now(), title: "New Game", status: "Playing", rank: "Newbie", image: null, desc: "Deskripsi pengalaman bermain..." }, ...games]);
-  const filteredStories = storyFilter === "All" ? stories : stories.filter(s => s.category === storyFilter);
+
+  // --- UPDATE: SORTING LOGIC ---
+  // Fungsi untuk mendapatkan data yang sudah disortir tanpa mengubah state asli (kecuali manual)
+  const getSortedData = (data, sortType) => {
+    if (sortType === 'manual') return data; // Balik ke urutan asli state
+    
+    // Copy data biar state asli aman
+    const sorted = [...data];
+    if (sortType === 'name_asc') return sorted.sort((a, b) => a.title.localeCompare(b.title));
+    if (sortType === 'name_desc') return sorted.sort((a, b) => b.title.localeCompare(a.title));
+    if (sortType === 'newest') return sorted.sort((a, b) => b.id - a.id); // Asumsi ID pakai Date.now()
+    if (sortType === 'oldest') return sorted.sort((a, b) => a.id - b.id);
+    return sorted;
+  };
+
+  // Komponen Dropdown Sort Kecil
+  const SortControls = ({ tab }) => (
+    <select 
+      value={sortConfig[tab]} 
+      onChange={(e) => setSortConfig({ ...sortConfig, [tab]: e.target.value })}
+      className="bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-xs font-bold px-3 py-2 rounded-lg outline-none cursor-pointer"
+    >
+      <option value="manual">Sort: Manual (Drag)</option>
+      <option value="name_asc">Name (A-Z)</option>
+      <option value="name_desc">Name (Z-A)</option>
+      <option value="newest">Newest Added</option>
+      <option value="oldest">Oldest Added</option>
+    </select>
+  );
 
   return (
     <div className={isDark ? "dark" : ""}>
@@ -279,7 +322,6 @@ export default function App() {
                       <>
                         <div><label className="text-xs font-bold uppercase text-slate-400">Status</label><input className="w-full p-2 rounded bg-slate-100 dark:bg-zinc-800" value={editingItem.status} onChange={e => setEditingItem({...editingItem, status: e.target.value})} /></div>
                         <div><label className="text-xs font-bold uppercase text-slate-400">Rank</label><input className="w-full p-2 rounded bg-slate-100 dark:bg-zinc-800" value={editingItem.rank} onChange={e => setEditingItem({...editingItem, rank: e.target.value})} /></div>
-                        {/* UPDATE: Input Deskripsi Game */}
                         <div><label className="text-xs font-bold uppercase text-indigo-400">Deskripsi (Hover Reveal)</label><textarea className="w-full p-2 rounded bg-slate-100 dark:bg-zinc-800 h-24" value={editingItem.desc || ''} onChange={e => setEditingItem({...editingItem, desc: e.target.value})} placeholder="Tulis deskripsi yang akan muncul saat di-hover..." /></div>
                       </>
                     )}
@@ -409,76 +451,65 @@ export default function App() {
                 {/* PROJECTS TAB */}
                 {activeTab === 'projects' && (
                   <motion.div key="projects" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-                     <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold">My Works</h3>{editMode && <button onClick={addProject} className="bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold hover:scale-105 transition-transform">+ New</button>}</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                      <AnimatePresence>
-                        {projects.map((p) => (
-                          <motion.div layout variants={itemVariants} initial="hidden" animate="visible" exit="exit" key={p.id} className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 group">
-                            <div className="h-48 bg-slate-200 dark:bg-zinc-800 relative">
-                               {p.image ? <img src={p.image} className="w-full h-full object-cover" alt={p.title}/> : <div className="w-full h-full flex items-center justify-center text-4xl">💻</div>}
-                               {editMode && <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10"><label className="cursor-pointer bg-white text-black px-4 py-2 rounded-full font-bold text-xs hover:scale-105"><span>📷 Cover</span><input type="file" className="hidden" onChange={(e) => initiateCrop(e, 'projects', p.id)}/></label></div>}
+                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                       <h3 className="text-xl font-bold">My Works</h3>
+                       <div className="flex gap-2">
+                         <SortControls tab="projects" />
+                         {editMode && <button onClick={addProject} className="bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold hover:scale-105 transition-transform">+ New</button>}
+                       </div>
+                     </div>
+
+                    {/* UPDATE: Reorder Logic vs Sorted View */}
+                    {sortConfig.projects === 'manual' ? (
+                       <Reorder.Group axis="y" values={projects} onReorder={setProjects} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                          {projects.map((p) => (
+                            <Reorder.Item key={p.id} value={p} dragListener={editMode} className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 group h-full">
+                               {editMode && <DragHandle />}
+                               <ProjectCardContent p={p} editMode={editMode} openEditModal={openEditModal} initiateCrop={initiateCrop} setProjects={setProjects} projects={projects} />
+                            </Reorder.Item>
+                          ))}
+                       </Reorder.Group>
+                    ) : (
+                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                          {getSortedData(projects, sortConfig.projects).map((p) => (
+                            <div key={p.id} className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 group">
+                               <ProjectCardContent p={p} editMode={editMode} openEditModal={openEditModal} initiateCrop={initiateCrop} setProjects={setProjects} projects={projects} />
                             </div>
-                            <div className="p-6">
-                              <h3 className="font-bold text-xl mb-1">{p.title}</h3>
-                              <p className="text-xs font-mono text-indigo-500 mb-4">{p.tech}</p>
-                              <p className="text-sm text-slate-500 dark:text-zinc-400 line-clamp-3">{p.desc}</p>
-                              {editMode && <button onClick={() => openEditModal(p, 'projects')} className="w-full mt-4 py-2 bg-slate-100 dark:bg-zinc-800 text-xs font-bold rounded-lg hover:bg-indigo-100 dark:hover:bg-zinc-700 hover:text-indigo-600 transition-colors">Edit Text 📝</button>}
-                            </div>
-                            {editMode && <button onClick={() => setProjects(projects.filter(x => x.id !== p.id))} className="absolute top-3 right-3 z-20 bg-red-500 text-white w-8 h-8 flex items-center justify-center rounded-full shadow-lg font-bold text-xs hover:bg-red-600">✕</button>}
-                          </motion.div>
-                        ))}
-                      </AnimatePresence>
-                    </div>
+                          ))}
+                       </div>
+                    )}
                   </motion.div>
                 )}
 
-                {/* GAMES TAB (UPDATED: Hover Reveal Effect) */}
+                {/* GAMES TAB */}
                 {activeTab === 'games' && (
                   <motion.div key="games" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-                    <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold">Gaming Center</h3>{editMode && <button onClick={addGame} className="bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold hover:scale-105 transition-transform">+ Add</button>}</div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <AnimatePresence>
-                        {games.map((g) => (
-                          <motion.div layout variants={itemVariants} initial="hidden" animate="visible" exit="exit" key={g.id} className="group relative aspect-[3/4] rounded-2xl bg-slate-200 dark:bg-zinc-900 overflow-hidden border border-slate-200 dark:border-zinc-800 shadow-lg cursor-pointer">
-                             {/* IMAGE - Zoom on hover */}
-                             <div className="w-full h-full transition-transform duration-500 group-hover:scale-110">
-                                {g.image ? <img src={g.image} className="w-full h-full object-cover" alt={g.title}/> : <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-white"><span className="text-4xl">🎮</span></div>}
-                             </div>
-                             
-                             {/* OVERLAY GRADIENT */}
-                             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-80 transition-opacity duration-300" />
-                             
-                             {/* CONTENT - Slide Up Animation */}
-                             <div className="absolute bottom-0 left-0 right-0 p-5 flex flex-col justify-end">
-                                <h4 className="font-bold text-white text-lg leading-tight mb-1">{g.title}</h4>
-                                <div className="flex items-center gap-2 mb-2">
-                                   <span className="text-[10px] font-bold bg-indigo-600 text-white px-2 py-0.5 rounded">{g.rank}</span>
-                                   <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">{g.status}</span>
-                                </div>
-                                
-                                {/* DESKRIPSI - Muncul saat hover */}
-                                <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-300 ease-out">
-                                    <div className="overflow-hidden">
-                                        <p className="text-xs text-zinc-300 mt-2 leading-relaxed opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100">
-                                            {g.desc || "Tidak ada deskripsi tambahan."}
-                                        </p>
-                                    </div>
-                                </div>
-                             </div>
-
-                             {editMode && (
-                               <>
-                                 <div className="absolute inset-0 bg-black/60 flex flex-col gap-2 items-center justify-center z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <label className="cursor-pointer bg-white text-black px-3 py-1 rounded-full font-bold text-[10px] hover:scale-105"><span>📷 Ganti</span><input type="file" className="hidden" onChange={(e) => initiateCrop(e, 'games', g.id)}/></label>
-                                    <button onClick={() => openEditModal(g, 'games')} className="bg-indigo-600 text-white px-3 py-1 rounded-full font-bold text-[10px] hover:scale-105">Edit 📝</button>
-                                 </div>
-                                 <button onClick={(e) => {e.preventDefault(); setGames(games.filter(x => x.id !== g.id))}} className="absolute top-2 right-2 z-20 bg-red-600 text-white w-6 h-6 flex items-center justify-center rounded-full shadow-md text-[10px] hover:bg-red-700">✕</button>
-                               </>
-                             )}
-                          </motion.div>
-                        ))}
-                      </AnimatePresence>
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                      <h3 className="text-xl font-bold">Gaming Center</h3>
+                      <div className="flex gap-2">
+                         <SortControls tab="games" />
+                         {editMode && <button onClick={addGame} className="bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold hover:scale-105 transition-transform">+ Add</button>}
+                      </div>
                     </div>
+
+                    {sortConfig.games === 'manual' ? (
+                      <Reorder.Group axis="y" values={games} onReorder={setGames} className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {games.map((g) => (
+                          <Reorder.Item key={g.id} value={g} dragListener={editMode} className="group relative aspect-[3/4] rounded-2xl bg-slate-200 dark:bg-zinc-900 overflow-hidden border border-slate-200 dark:border-zinc-800 shadow-lg cursor-pointer">
+                             {editMode && <DragHandle />}
+                             <GameCardContent g={g} editMode={editMode} openEditModal={openEditModal} initiateCrop={initiateCrop} setGames={setGames} games={games} />
+                          </Reorder.Item>
+                        ))}
+                      </Reorder.Group>
+                    ) : (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {getSortedData(games, sortConfig.games).map((g) => (
+                          <div key={g.id} className="group relative aspect-[3/4] rounded-2xl bg-slate-200 dark:bg-zinc-900 overflow-hidden border border-slate-200 dark:border-zinc-800 shadow-lg cursor-pointer">
+                             <GameCardContent g={g} editMode={editMode} openEditModal={openEditModal} initiateCrop={initiateCrop} setGames={setGames} games={games} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </motion.div>
                 )}
 
@@ -487,37 +518,41 @@ export default function App() {
                   <motion.div key="stories" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                       <h3 className="text-xl font-bold">My Stories</h3>
-                      <div className="flex gap-2 bg-white dark:bg-zinc-900 p-1 rounded-xl border border-slate-200 dark:border-zinc-800">
+                      <div className="flex gap-2 flex-wrap">
                         {["All", "One-Shot", "Series", "Draft"].map(f => (
                           <button key={f} onClick={() => setStoryFilter(f)} className={`px-4 py-1 rounded-lg text-xs font-bold transition-all ${storyFilter === f ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-zinc-800'}`}>{f}</button>
                         ))}
                       </div>
-                      {editMode && <button onClick={addStory} className="bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold text-sm hover:scale-105 transition-transform">+ Write</button>}
+                      <div className="flex gap-2">
+                        <SortControls tab="stories" />
+                        {editMode && <button onClick={addStory} className="bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold text-sm hover:scale-105 transition-transform">+ Write</button>}
+                      </div>
                     </div>
-                    <div className="space-y-6">
-                      <AnimatePresence>
-                        {filteredStories.map((s) => (
-                          <motion.div layout variants={itemVariants} initial="hidden" animate="visible" exit="exit" key={s.id} className="relative flex flex-col md:flex-row gap-6 p-6 rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:border-indigo-500 transition-all group">
-                            <div className="w-full md:w-48 aspect-[2/3] bg-slate-200 dark:bg-zinc-800 rounded-xl overflow-hidden shrink-0 relative">
-                              {s.image ? <img src={s.image} className="w-full h-full object-cover" alt={s.title}/> : <div className="w-full h-full flex items-center justify-center bg-zinc-800 text-zinc-600 text-4xl">📖</div>}
-                              <span className="absolute top-2 left-2 px-2 py-1 bg-black/50 text-white text-[10px] font-bold rounded backdrop-blur-sm">{s.category}</span>
-                              {editMode && <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10"><label className="cursor-pointer bg-white text-black px-3 py-2 rounded-full font-bold text-xs hover:scale-105"><span>📷 Cover</span><input type="file" className="hidden" onChange={(e) => initiateCrop(e, 'stories', s.id)}/></label></div>}
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex justify-between items-start">
-                                <div><h2 className="text-2xl font-bold mb-2 group-hover:text-indigo-500 transition-colors">{s.title}</h2><span className="px-3 py-1 rounded-full bg-slate-100 dark:bg-zinc-800 text-xs font-mono">{s.date}</span></div>
-                                {editMode && <button onClick={() => setStories(stories.filter(x => x.id !== s.id))} className="text-red-500 hover:text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-1 rounded-lg text-sm font-bold transition-colors">Delete 🗑️</button>}
-                              </div>
-                              <p className="mt-4 text-slate-600 dark:text-zinc-400 leading-relaxed line-clamp-3">{s.snippet}</p>
-                              <div className="flex items-center gap-4 mt-6">
-                                <button onClick={() => setReadingStory(s)} className="text-indigo-500 font-bold text-sm hover:underline flex items-center gap-1">Read Full Story <span>→</span></button>
-                                {editMode && <button onClick={() => openEditModal(s, 'stories')} className="text-xs bg-slate-200 dark:bg-zinc-700 px-3 py-1 rounded font-bold hover:bg-indigo-100 dark:hover:bg-zinc-600">Edit Details 📝</button>}
-                              </div>
-                            </div>
-                          </motion.div>
-                        ))}
-                      </AnimatePresence>
-                    </div>
+
+                    {/* Filter dulu baru render */}
+                    {(() => {
+                        const filtered = storyFilter === "All" ? stories : stories.filter(s => s.category === storyFilter);
+                        const displayStories = getSortedData(filtered, sortConfig.stories);
+                        
+                        return sortConfig.stories === 'manual' && storyFilter === 'All' ? (
+                           <Reorder.Group axis="y" values={stories} onReorder={setStories} className="space-y-6">
+                              {stories.map((s) => (
+                                <Reorder.Item key={s.id} value={s} dragListener={editMode} className="relative flex flex-col md:flex-row gap-6 p-6 rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:border-indigo-500 transition-all group">
+                                   {editMode && <DragHandle />}
+                                   <StoryCardContent s={s} editMode={editMode} openEditModal={openEditModal} initiateCrop={initiateCrop} setStories={setStories} stories={stories} setReadingStory={setReadingStory} />
+                                </Reorder.Item>
+                              ))}
+                           </Reorder.Group>
+                        ) : (
+                           <div className="space-y-6">
+                             {displayStories.map((s) => (
+                               <div key={s.id} className="relative flex flex-col md:flex-row gap-6 p-6 rounded-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:border-indigo-500 transition-all group">
+                                 <StoryCardContent s={s} editMode={editMode} openEditModal={openEditModal} initiateCrop={initiateCrop} setStories={setStories} stories={stories} setReadingStory={setReadingStory} />
+                               </div>
+                             ))}
+                           </div>
+                        )
+                    })()}
                   </motion.div>
                 )}
 
@@ -529,3 +564,74 @@ export default function App() {
     </div>
   );
 }
+
+// --- SUB-COMPONENTS untuk Konten Card (Biar rapi) ---
+
+const ProjectCardContent = ({ p, editMode, openEditModal, initiateCrop, setProjects, projects }) => (
+  <>
+    <div className="h-48 bg-slate-200 dark:bg-zinc-800 relative">
+        {p.image ? <img src={p.image} className="w-full h-full object-cover" alt={p.title}/> : <div className="w-full h-full flex items-center justify-center text-4xl">💻</div>}
+        {editMode && <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10"><label className="cursor-pointer bg-white text-black px-4 py-2 rounded-full font-bold text-xs hover:scale-105"><span>📷 Cover</span><input type="file" className="hidden" onChange={(e) => initiateCrop(e, 'projects', p.id)}/></label></div>}
+    </div>
+    <div className="p-6">
+      <h3 className="font-bold text-xl mb-1">{p.title}</h3>
+      <p className="text-xs font-mono text-indigo-500 mb-4">{p.tech}</p>
+      <p className="text-sm text-slate-500 dark:text-zinc-400 line-clamp-3">{p.desc}</p>
+      {editMode && <button onClick={() => openEditModal(p, 'projects')} className="w-full mt-4 py-2 bg-slate-100 dark:bg-zinc-800 text-xs font-bold rounded-lg hover:bg-indigo-100 dark:hover:bg-zinc-700 hover:text-indigo-600 transition-colors">Edit Text 📝</button>}
+    </div>
+    {editMode && <button onClick={() => setProjects(projects.filter(x => x.id !== p.id))} className="absolute top-3 right-3 z-20 bg-red-500 text-white w-8 h-8 flex items-center justify-center rounded-full shadow-lg font-bold text-xs hover:bg-red-600">✕</button>}
+  </>
+);
+
+const GameCardContent = ({ g, editMode, openEditModal, initiateCrop, setGames, games }) => (
+  <>
+     <div className="w-full h-full transition-transform duration-500 group-hover:scale-110">
+        {g.image ? <img src={g.image} className="w-full h-full object-cover" alt={g.title}/> : <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-white"><span className="text-4xl">🎮</span></div>}
+     </div>
+     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-80 transition-opacity duration-300" />
+     <div className="absolute bottom-0 left-0 right-0 p-5 flex flex-col justify-end">
+        <h4 className="font-bold text-white text-lg leading-tight mb-1">{g.title}</h4>
+        <div className="flex items-center gap-2 mb-2">
+           <span className="text-[10px] font-bold bg-indigo-600 text-white px-2 py-0.5 rounded">{g.rank}</span>
+           <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">{g.status}</span>
+        </div>
+        <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-300 ease-out">
+            <div className="overflow-hidden">
+                <p className="text-xs text-zinc-300 mt-2 leading-relaxed opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100">
+                    {g.desc || "Tidak ada deskripsi tambahan."}
+                </p>
+            </div>
+        </div>
+     </div>
+     {editMode && (
+       <>
+         <div className="absolute inset-0 bg-black/60 flex flex-col gap-2 items-center justify-center z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+            <label className="cursor-pointer bg-white text-black px-3 py-1 rounded-full font-bold text-[10px] hover:scale-105"><span>📷 Ganti</span><input type="file" className="hidden" onChange={(e) => initiateCrop(e, 'games', g.id)}/></label>
+            <button onClick={() => openEditModal(g, 'games')} className="bg-indigo-600 text-white px-3 py-1 rounded-full font-bold text-[10px] hover:scale-105">Edit 📝</button>
+         </div>
+         <button onClick={(e) => {e.preventDefault(); setGames(games.filter(x => x.id !== g.id))}} className="absolute top-2 right-2 z-20 bg-red-600 text-white w-6 h-6 flex items-center justify-center rounded-full shadow-md text-[10px] hover:bg-red-700">✕</button>
+       </>
+     )}
+  </>
+);
+
+const StoryCardContent = ({ s, editMode, openEditModal, initiateCrop, setStories, stories, setReadingStory }) => (
+  <>
+    <div className="w-full md:w-48 aspect-[2/3] bg-slate-200 dark:bg-zinc-800 rounded-xl overflow-hidden shrink-0 relative">
+      {s.image ? <img src={s.image} className="w-full h-full object-cover" alt={s.title}/> : <div className="w-full h-full flex items-center justify-center bg-zinc-800 text-zinc-600 text-4xl">📖</div>}
+      <span className="absolute top-2 left-2 px-2 py-1 bg-black/50 text-white text-[10px] font-bold rounded backdrop-blur-sm">{s.category}</span>
+      {editMode && <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10"><label className="cursor-pointer bg-white text-black px-3 py-2 rounded-full font-bold text-xs hover:scale-105"><span>📷 Cover</span><input type="file" className="hidden" onChange={(e) => initiateCrop(e, 'stories', s.id)}/></label></div>}
+    </div>
+    <div className="flex-1">
+      <div className="flex justify-between items-start">
+        <div><h2 className="text-2xl font-bold mb-2 group-hover:text-indigo-500 transition-colors">{s.title}</h2><span className="px-3 py-1 rounded-full bg-slate-100 dark:bg-zinc-800 text-xs font-mono">{s.date}</span></div>
+        {editMode && <button onClick={() => setStories(stories.filter(x => x.id !== s.id))} className="text-red-500 hover:text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-1 rounded-lg text-sm font-bold transition-colors">Delete 🗑️</button>}
+      </div>
+      <p className="mt-4 text-slate-600 dark:text-zinc-400 leading-relaxed line-clamp-3">{s.snippet}</p>
+      <div className="flex items-center gap-4 mt-6">
+        <button onClick={() => setReadingStory(s)} className="text-indigo-500 font-bold text-sm hover:underline flex items-center gap-1">Read Full Story <span>→</span></button>
+        {editMode && <button onClick={() => openEditModal(s, 'stories')} className="text-xs bg-slate-200 dark:bg-zinc-700 px-3 py-1 rounded font-bold hover:bg-indigo-100 dark:hover:bg-zinc-600">Edit Details 📝</button>}
+      </div>
+    </div>
+  </>
+);
